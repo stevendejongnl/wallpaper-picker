@@ -1,0 +1,7 @@
+# Blacklisted wallpapers. One key per line: Wallhaven id for cached online
+# downloads, absolute path for local files. Managed automatically by
+# wallpaper.sh (--blacklist) and the wallpaper-gui.py picker -- you normally
+# don't need to edit this by hand.
+#
+# Copy this file to ~/.config/wallpaper/blacklist.txt to start with an empty
+# blacklist.

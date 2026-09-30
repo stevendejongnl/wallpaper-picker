@@ -1,0 +1,13 @@
+[Unit]
+Description=Wallpaper
+
+[Timer]
+# First run shortly after login/boot
+OnBootSec=30s
+# Then repeat on this interval. Override without editing this file:
+#   wallpaper.sh --interval 1h
+#   wallpaper.sh --timer-disable   # turn automatic runs off entirely
+OnUnitActiveSec=3h
+
+[Install]
+WantedBy=timers.target

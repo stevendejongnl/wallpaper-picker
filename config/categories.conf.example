@@ -1,0 +1,15 @@
+# Wallhaven search queries -- one per line. A random one is picked each run
+# (or each candidate, when using --gui / --candidates).
+# Blank lines and lines starting with # are ignored.
+# Edit freely; no restart needed, the next run picks it up.
+#
+# Copy this file to ~/.config/wallpaper/categories.conf and customize.
+
+nature landscape
+mountains
+ocean
+space
+minimal abstract
+architecture
+night sky
+forest

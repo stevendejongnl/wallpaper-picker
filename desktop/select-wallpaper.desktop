@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Select Wallpaper
+Comment=Change the wallpaper by picking a local file from a terminal list
+Exec=kitty --hold /bin/bash -c '$HOME/.local/share/wallpaper-picker/bin/wallpaper.sh --select'
+Icon=wallpaper
+Terminal=false
+Type=Application
+Categories=System;Utility
+Keywords=wallpaper;change;desktop;background;image;picture
