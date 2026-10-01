@@ -30,6 +30,7 @@ ln -sfn "$REPO_DIR/systemd/wallpaper.timer" "$SYSTEMD_USER_DIR/wallpaper.timer"
 log "Linking .desktop launchers..."
 ln -sfn "$REPO_DIR/desktop/change-wallpaper.desktop" "$APPS_DIR/change-wallpaper.desktop"
 ln -sfn "$REPO_DIR/desktop/select-wallpaper.desktop" "$APPS_DIR/select-wallpaper.desktop"
+ln -sfn "$REPO_DIR/desktop/wallpaper-gallery.desktop" "$APPS_DIR/wallpaper-gallery.desktop"
 
 if [[ ! -f "$WALLPAPER_CONFIG_DIR/categories.conf" ]]; then
     log "Seeding categories.conf from example (edit this -- it's your search queries)"

@@ -49,6 +49,58 @@ def label_for(path):
     return os.path.splitext(os.path.basename(path))[0]
 
 
+def show_preview(parent, path):
+    display = Gdk.Display.get_default()
+    parent_window = parent.get_window()
+    monitor = (
+        display.get_monitor_at_window(parent_window)
+        if parent_window is not None
+        else display.get_monitor(0)
+    )
+    geometry = monitor.get_geometry()
+    width = int(geometry.width * 0.9)
+    height = int(geometry.height * 0.9)
+
+    popup = Gtk.Window(type=Gtk.WindowType.TOPLEVEL)
+    popup.set_title(label_for(path))
+    popup.set_transient_for(parent)
+    popup.set_modal(True)
+    popup.set_decorated(False)
+    popup.set_position(Gtk.WindowPosition.NONE)
+    popup.set_default_size(width, height)
+    popup.move(
+        geometry.x + (geometry.width - width) // 2,
+        geometry.y + (geometry.height - height) // 2,
+    )
+    popup.connect(
+        "key-press-event",
+        lambda _w, e: popup.close() if (Gdk.keyval_name(e.keyval) or "") == "Escape" else None,
+    )
+
+    outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+    popup.add(outer)
+
+    header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+    header.set_border_width(6)
+    name_label = Gtk.Label(label=label_for(path))
+    name_label.set_halign(Gtk.Align.START)
+    close_btn = Gtk.Button(label="Close")
+    close_btn.connect("clicked", lambda _b: popup.close())
+    header.pack_start(name_label, True, True, 0)
+    header.pack_end(close_btn, False, False, 0)
+    outer.pack_start(header, False, False, 0)
+
+    image = Gtk.Image()
+    try:
+        pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(path, width, height - 50, True)
+        image.set_from_pixbuf(pixbuf)
+    except GLib.Error:
+        image = Gtk.Label(label="(failed to load image)")
+    outer.pack_start(image, True, True, 0)
+
+    popup.show_all()
+
+
 class WallpaperPicker(Gtk.Window):
     def __init__(self):
         super().__init__(title="Pick a wallpaper")
@@ -92,7 +144,7 @@ class WallpaperPicker(Gtk.Window):
             image = Gtk.Image()
             image.set_size_request(THUMB_SIZE, THUMB_SIZE)
             event_box.add(image)
-            event_box.connect("button-press-event", self.make_select_handler(i))
+            event_box.connect("button-press-event", self.make_preview_handler(i))
             col.pack_start(event_box, False, False, 0)
             self.image_widgets.append(image)
 
@@ -137,11 +189,12 @@ class WallpaperPicker(Gtk.Window):
 
     # --- selection / countdown -------------------------------------------------
 
-    def make_select_handler(self, i):
+    def make_preview_handler(self, i):
         def handler(_widget, _event):
             if i < len(self.candidates):
                 self.radio_buttons[i].set_active(True)
                 self.reset_countdown()
+                show_preview(self, self.candidates[i])
         return handler
 
     def make_radio_handler(self, i):

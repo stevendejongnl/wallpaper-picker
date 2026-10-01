@@ -10,6 +10,10 @@
 #   --set FILE        apply FILE as the wallpaper (feh + notify + record it)
 #   --blacklist FILE  blacklist FILE (by Wallhaven id, or by path if local)
 #                     and delete it
+#   --remove FILE     delete FILE without blacklisting it (may be fetched again)
+#   --list            print every downloaded/local wallpaper, one path per line
+#   --current         print the currently applied wallpaper's path
+#   --gallery         show a GTK gallery of all wallpapers: set, remove, blacklist
 #   --reapply         re-apply the last-set wallpaper, no fetch, no GUI
 #   -s / --select     pick from your local wallpapers directory interactively
 #   -l / --local      force a random local wallpaper, skip the online fetch
@@ -313,6 +317,34 @@ cmd_blacklist() {
     log "blacklisted: $file (key=$key)"
 }
 
+cmd_remove() {
+    local file="$1"
+    if [[ -z "$file" || ! -f "$file" ]]; then
+        log "--remove: file not found: $file"
+        exit 1
+    fi
+    rm -f "$file"
+    log "removed: $file"
+}
+
+cmd_list() {
+    wallpapers_list=()
+    find_local_wallpapers "$WALLPAPERS_DIR"
+    printf '%s\n' "${wallpapers_list[@]}"
+}
+
+cmd_current() {
+    [[ -f "$CURRENT_FILE" ]] && cat "$CURRENT_FILE"
+}
+
+cmd_gallery() {
+    if ! command -v python3 >/dev/null 2>&1; then
+        log "python3 not found, cannot show gallery"
+        exit 1
+    fi
+    WALLPAPER_SH_NOLOCK=1 python3 "$SCRIPT_DIR/wallpaper-gallery.py" "$SCRIPT_PATH"
+}
+
 cmd_reapply() {
     if [[ ! -f "$CURRENT_FILE" ]]; then
         log "--reapply: no current wallpaper recorded"
@@ -420,6 +452,18 @@ case "${1:-}" in
         ;;
     --blacklist)
         cmd_blacklist "$2"
+        ;;
+    --remove)
+        cmd_remove "$2"
+        ;;
+    --list)
+        cmd_list
+        ;;
+    --current)
+        cmd_current
+        ;;
+    --gallery)
+        cmd_gallery
         ;;
     --reapply)
         cmd_reapply

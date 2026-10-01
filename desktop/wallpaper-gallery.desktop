@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Wallpaper Gallery
+Comment=View downloaded/used wallpapers, remove or blacklist ones you don't want
+Exec=/bin/bash -c '$HOME/.local/share/wallpaper-picker/bin/wallpaper.sh --gallery'
+Icon=wallpaper
+Terminal=false
+Type=Application
+Categories=System;Utility
+Keywords=wallpaper;gallery;blacklist;remove;browse;image;picture
