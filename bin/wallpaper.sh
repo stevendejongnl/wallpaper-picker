@@ -38,7 +38,7 @@ CURRENT_FILE="$HOME/.config/wallpaper/current"
 LOCK_FILE="$WALLPAPERS_DIR/.wallpaper.lock"
 TIMER_OVERRIDE_DIR="$HOME/.config/systemd/user/wallpaper.timer.d"
 TIMER_OVERRIDE_FILE="$TIMER_OVERRIDE_DIR/override.conf"
-ONLINE_KEEP=20    # prune cached online wallpapers beyond this count
+ONLINE_KEEP=100    # prune cached online wallpapers beyond this count
 LOG_KEEP_LINES=2000
 
 mkdir -p "$WALLPAPERS_DIR" "$ONLINE_DIR" "$(dirname "$BLACKLIST_FILE")"

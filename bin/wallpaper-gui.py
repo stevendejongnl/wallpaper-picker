@@ -3,8 +3,8 @@
 
 Shows N candidate wallpapers, lets you blacklist the ones you don't like
 (deleted + never offered again) and pick the one to apply, or shuffle for
-N new candidates. Auto-dismisses after AUTO_DISMISS_SECONDS by applying the
-first candidate, so an unattended timer run never hangs behind the window.
+N new candidates. Auto-dismisses after AUTO_DISMISS_SECONDS by keeping the
+current wallpaper, so an unattended timer run never hangs behind the window.
 
 All fetch / set / blacklist logic lives in wallpaper.sh; this script only
 shells out to it.
@@ -212,9 +212,9 @@ class WallpaperPicker(Gtk.Window):
             return False
         self.remaining -= 1
         mins, secs = divmod(max(self.remaining, 0), 60)
-        self.countdown_label.set_text(f"auto-set in {mins}:{secs:02d}")
+        self.countdown_label.set_text(f"auto-keep in {mins}:{secs:02d}")
         if self.remaining <= 0:
-            self.finish(keep_current=False)
+            self.finish(keep_current=True)
             return False
         return True
 
