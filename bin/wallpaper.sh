@@ -96,6 +96,14 @@ blacklist_add() {
     printf '%s    # %s %s\n' "$key" "$label" "$(date '+%Y-%m-%d')" >> "$BLACKLIST_FILE"
 }
 
+# Commit + push BLACKLIST_FILE's dotfiles repo so it doesn't stay dirty.
+# Best-effort: offline or diverged repo should not break the wallpaper flow.
+sync_blacklist() {
+    command -v archsync >/dev/null || return 0
+    archsync sync "wallpaper: blacklist update $(date '+%Y-%m-%d %H:%M')" >>"$LOG_FILE" 2>&1 || \
+        log "archsync sync failed, blacklist left uncommitted"
+}
+
 # --- core actions ------------------------------------------------------------
 
 set_wallpaper() {
@@ -315,6 +323,7 @@ cmd_blacklist() {
     blacklist_add "$key" "$(basename "$file")"
     rm -f "$file"
     log "blacklisted: $file (key=$key)"
+    sync_blacklist
 }
 
 cmd_remove() {
