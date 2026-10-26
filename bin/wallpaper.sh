@@ -21,6 +21,13 @@
 #   --interval VALUE  set the timer's auto-run interval (systemd time span,
 #                     e.g. "1h", "90m", "6h") via a drop-in override; does
 #                     not touch the tracked wallpaper.timer file
+#   --mode periodic [VALUE]
+#                     run the timer every VALUE (default: the 3h from
+#                     wallpaper.timer when VALUE is omitted)
+#   --mode events     run once after boot and after each display profile
+#                     change, no repeat; needs --display-changed called from
+#                     the profile switcher
+#   --display-changed open the picker if the mode is "events", else do nothing
 #   --timer-enable    turn automatic (timer-driven) runs on
 #   --timer-disable   turn automatic runs off; manual invocation (this
 #                     script, the alias, the .desktop launchers) still works
@@ -60,7 +67,10 @@ trap trim_log EXIT
 # by wallpaper-gui.py while the parent --gui run is still alive) set
 # WALLPAPER_SH_NOLOCK=1 so they don't deadlock against the lock their own
 # parent process is holding.
-if [[ -z "${WALLPAPER_SH_NOLOCK:-}" ]]; then
+#
+# --display-changed only starts wallpaper.service, which then takes the lock
+# itself, so it must not hold the lock while that service starts.
+if [[ -z "${WALLPAPER_SH_NOLOCK:-}" && "${1:-}" != "--display-changed" ]]; then
     exec 9>"$LOCK_FILE"
     flock -n 9 || { log "already running, skip"; exit 0; }
 fi
@@ -402,19 +412,82 @@ cmd_gui() {
 # manual runs, the alias, and the .desktop launchers) is untouched either way
 # -- disabling the timer only stops the automatic every-N-hours run.
 
+# Write the drop-in override. An empty interval leaves the timer without a
+# repeat, so it fires once after boot only (events mode).
+write_timer_override() {
+    local interval="$1"
+    mkdir -p "$TIMER_OVERRIDE_DIR"
+    # Blank OnUnitActiveSec first: systemd drop-ins accumulate values for
+    # list-type directives rather than replacing them.
+    printf '[Timer]\nOnUnitActiveSec=\n' > "$TIMER_OVERRIDE_FILE"
+    if [[ -n "$interval" ]]; then
+        printf 'OnUnitActiveSec=%s\n' "$interval" >> "$TIMER_OVERRIDE_FILE"
+    fi
+    systemctl --user daemon-reload
+}
+
+# True when the override removes the repeat: runs happen after boot and after
+# a display change only.
+timer_runs_on_events() {
+    [[ -f "$TIMER_OVERRIDE_FILE" ]] && ! grep -qP '^OnUnitActiveSec=.+' "$TIMER_OVERRIDE_FILE"
+}
+
 cmd_set_interval() {
     local value="$1"
     if [[ -z "$value" ]]; then
         echo "usage: wallpaper.sh --interval <systemd time span, e.g. 1h, 90m, 6h>" >&2
         exit 1
     fi
-    mkdir -p "$TIMER_OVERRIDE_DIR"
-    # Blank OnUnitActiveSec first: systemd drop-ins accumulate values for
-    # list-type directives rather than replacing them.
-    printf '[Timer]\nOnUnitActiveSec=\nOnUnitActiveSec=%s\n' "$value" > "$TIMER_OVERRIDE_FILE"
-    systemctl --user daemon-reload
+    write_timer_override "$value"
     log "timer interval set to $value"
     echo "interval set to $value"
+}
+
+cmd_set_periodic() {
+    local value="$1"
+    if [[ -n "$value" ]]; then
+        cmd_set_interval "$value"
+        return
+    fi
+    rm -f "$TIMER_OVERRIDE_FILE"
+    systemctl --user daemon-reload
+    log "timer mode set to periodic (default interval)"
+    echo "mode: periodic, default interval from wallpaper.timer"
+}
+
+cmd_set_events() {
+    write_timer_override ""
+    log "timer mode set to events"
+    echo "mode: events (once after boot, then after each display profile change)"
+}
+
+cmd_set_mode() {
+    case "${1:-}" in
+        periodic)
+            cmd_set_periodic "${2:-}"
+            ;;
+        events)
+            cmd_set_events
+            ;;
+        *)
+            echo "usage: wallpaper.sh --mode periodic [span] | events" >&2
+            exit 1
+            ;;
+    esac
+}
+
+# Called by the display profile switcher (e.g. autorandr) once the profile is
+# chosen. Opens the picker in events mode, does nothing in periodic mode.
+cmd_display_changed() {
+    if ! timer_runs_on_events; then
+        log "display changed: periodic mode, nothing to do"
+        return
+    fi
+    # The switcher may run as a system service without a user session bus
+    # address, so point systemctl at the user manager.
+    export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+    systemctl --user start --no-block wallpaper.service
+    log "display changed: picker started"
 }
 
 cmd_timer_enable() {
@@ -430,14 +503,19 @@ cmd_timer_disable() {
 }
 
 cmd_timer_status() {
-    local enabled interval
+    local enabled interval mode
     enabled=$(systemctl --user is-enabled wallpaper.timer 2>/dev/null)
     [[ -z "$enabled" ]] && enabled="unknown"
+    mode="periodic"
     interval="3h (default, from wallpaper.timer)"
-    if [[ -f "$TIMER_OVERRIDE_FILE" ]]; then
+    if timer_runs_on_events; then
+        mode="events"
+        interval="none (after boot and display changes only)"
+    elif [[ -f "$TIMER_OVERRIDE_FILE" ]]; then
         interval="$(grep -oP '(?<=OnUnitActiveSec=).+' "$TIMER_OVERRIDE_FILE" | tail -1) (override)"
     fi
     echo "timer: $enabled"
+    echo "mode: $mode"
     echo "interval: $interval"
     systemctl --user list-timers wallpaper.timer --no-pager 2>/dev/null
 }
@@ -482,6 +560,12 @@ case "${1:-}" in
         ;;
     --interval)
         cmd_set_interval "$2"
+        ;;
+    --mode)
+        cmd_set_mode "${2:-}" "${3:-}"
+        ;;
+    --display-changed)
+        cmd_display_changed
         ;;
     --timer-enable)
         cmd_timer_enable
