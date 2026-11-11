@@ -27,9 +27,7 @@ log "Linking systemd user units..."
 ln -sfn "$REPO_DIR/systemd/wallpaper.service" "$SYSTEMD_USER_DIR/wallpaper.service"
 ln -sfn "$REPO_DIR/systemd/wallpaper.timer" "$SYSTEMD_USER_DIR/wallpaper.timer"
 
-log "Linking .desktop launchers..."
-ln -sfn "$REPO_DIR/desktop/change-wallpaper.desktop" "$APPS_DIR/change-wallpaper.desktop"
-ln -sfn "$REPO_DIR/desktop/select-wallpaper.desktop" "$APPS_DIR/select-wallpaper.desktop"
+log "Linking the .desktop launcher..."
 ln -sfn "$REPO_DIR/desktop/wallpaper-gallery.desktop" "$APPS_DIR/wallpaper-gallery.desktop"
 
 if [[ ! -f "$WALLPAPER_CONFIG_DIR/categories.conf" ]]; then

@@ -62,14 +62,16 @@ time, no restart needed.
 `1`/`2`/`3`) to select it, tick "Blacklist" under any you don't want to see
 again, `Shuffle 3 new` for a fresh set, `Set` (or `Enter`) to apply, `Keep
 current` (or `Escape`) to leave your wallpaper untouched. Ticked images are
-blacklisted either way. If left alone for 3 minutes it auto-applies the
-first candidate, so a timer-triggered run never hangs behind the window.
+blacklisted either way. If left alone for 3 minutes it keeps your current
+wallpaper, so a timer-triggered run never hangs behind the window.
 
 ### Cache
 
-Downloaded wallpapers are cached under `~/Pictures/wallpapers/online/`
-(newest 20 kept). `~/Pictures/wallpapers/log.txt` keeps a rolling history
-(last 2000 lines).
+Candidates are downloaded to `~/.cache/wallpaper/candidates/` and are not kept:
+the folder is emptied on every fetch and when the picker closes. Only the one
+you select is moved into `~/Pictures/wallpapers/online/`, and nothing is pruned
+there. `~/Pictures/wallpapers/log.txt` keeps a rolling history (last 2000
+lines).
 
 ## systemd units
 

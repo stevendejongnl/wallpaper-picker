@@ -6,7 +6,8 @@
 #                     on any failure (offline, API down, empty result, etc.)
 #   --gui             fetch candidates and show a GTK picker to choose/blacklist
 #   --candidates N    fetch N candidates (skipping blacklisted ids), print one
-#                     absolute path per line
+#                     absolute path per line. They are not kept: --set moves the
+#                     chosen one into ~/Pictures/wallpapers/online, the rest is deleted
 #   --set FILE        apply FILE as the wallpaper (feh + notify + record it)
 #   --blacklist FILE  blacklist FILE (by Wallhaven id, or by path if local)
 #                     and delete it
@@ -37,7 +38,10 @@ SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
 SCRIPT_DIR="$(dirname "$SCRIPT_PATH")"
 
 WALLPAPERS_DIR="$HOME/Pictures/wallpapers"
-ONLINE_DIR="$WALLPAPERS_DIR/online"
+ONLINE_DIR="$WALLPAPERS_DIR/online"      # wallpapers you selected, kept for good
+# Candidates are downloaded here and are not kept: only the one you select is moved
+# into ONLINE_DIR. The folder is emptied on every new fetch and when the picker closes.
+CANDIDATES_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/wallpaper/candidates"
 LOG_FILE="$WALLPAPERS_DIR/log.txt"
 CATEGORIES_FILE="$HOME/.config/wallpaper/categories.conf"
 BLACKLIST_FILE="$HOME/.config/wallpaper/blacklist.txt"
@@ -45,10 +49,9 @@ CURRENT_FILE="$HOME/.config/wallpaper/current"
 LOCK_FILE="$WALLPAPERS_DIR/.wallpaper.lock"
 TIMER_OVERRIDE_DIR="$HOME/.config/systemd/user/wallpaper.timer.d"
 TIMER_OVERRIDE_FILE="$TIMER_OVERRIDE_DIR/override.conf"
-ONLINE_KEEP=100    # prune cached online wallpapers beyond this count
 LOG_KEEP_LINES=2000
 
-mkdir -p "$WALLPAPERS_DIR" "$ONLINE_DIR" "$(dirname "$BLACKLIST_FILE")"
+mkdir -p "$WALLPAPERS_DIR" "$ONLINE_DIR" "$CANDIDATES_DIR" "$(dirname "$BLACKLIST_FILE")"
 
 log() { echo "$(date '+%Y-%m-%d %H:%M:%S') $*" >> "$LOG_FILE"; }
 
@@ -77,11 +80,11 @@ fi
 
 # --- blacklist helpers ------------------------------------------------------
 
-# Key for a wallpaper file: the Wallhaven id for cached online downloads
-# (filename pattern "<query>-<id>.jpg"), otherwise the absolute path.
+# Key for a wallpaper file: the Wallhaven id for online downloads, kept or still a
+# candidate (filename pattern "<query>-<id>.jpg"), otherwise the absolute path.
 key_for_file() {
     local file="$1" base
-    if [[ "$file" == "$ONLINE_DIR"/* ]]; then
+    if [[ "$file" == "$ONLINE_DIR"/* || "$file" == "$CANDIDATES_DIR"/* ]]; then
         base=$(basename "$file")
         if [[ "$base" =~ -([A-Za-z0-9]+)\.jpg$ ]]; then
             echo "${BASH_REMATCH[1]}"
@@ -116,8 +119,16 @@ sync_blacklist() {
 
 # --- core actions ------------------------------------------------------------
 
+clear_candidates() {
+    find "$CANDIDATES_DIR" -maxdepth 1 -type f -delete 2>/dev/null
+}
+
 set_wallpaper() {
     local file="$1"
+    # A selected candidate is the only download that is kept: move it into the library
+    if [[ "$file" == "$CANDIDATES_DIR"/* ]]; then
+        mv -f "$file" "$ONLINE_DIR/" && file="$ONLINE_DIR/$(basename "$file")"
+    fi
     feh --bg-fill "$file"
     touch "$file"
     echo "$file" > "$CURRENT_FILE"
@@ -155,17 +166,6 @@ pick_random_local() {
         return 1
     fi
     echo "${wallpapers_list[$((RANDOM % ${#wallpapers_list[@]}))]}"
-}
-
-prune_online_cache() {
-    # Keep the newest $ONLINE_KEEP, delete the rest
-    local files
-    mapfile -t files < <(ls -1t "$ONLINE_DIR"/*.jpg 2>/dev/null)
-    if [[ ${#files[@]} -gt $ONLINE_KEEP ]]; then
-        for ((i = ONLINE_KEEP; i < ${#files[@]}; i++)); do
-            rm -f "${files[$i]}"
-        done
-    fi
 }
 
 # Fetch one wallpaper for a given query, skipping any result whose Wallhaven
@@ -215,7 +215,13 @@ fetch_online_for_query() {
             continue
         fi
 
-        local dest="$ONLINE_DIR/${query}-${id}.jpg"
+        # already selected before: reuse the kept file
+        local kept="$ONLINE_DIR/${query}-${id}.jpg"
+        if [[ -f "$kept" ]]; then
+            echo "$kept"
+            return 0
+        fi
+        local dest="$CANDIDATES_DIR/${query}-${id}.jpg"
         if [[ -f "$dest" ]]; then
             echo "$dest"
             return 0
@@ -232,7 +238,6 @@ fetch_online_for_query() {
             continue
         fi
 
-        prune_online_cache
         echo "$dest"
         return 0
     done
@@ -273,6 +278,7 @@ fetch_candidates() {
         return 1
     fi
 
+    clear_candidates
     local -a results=()
     local tries=0 max_tries=$(( n * 4 > 12 ? n * 4 : 12 ))
     while (( ${#results[@]} < n && tries < max_tries )); do
@@ -401,6 +407,7 @@ cmd_gui() {
     local rc
     WALLPAPER_SH_NOLOCK=1 python3 "$SCRIPT_DIR/wallpaper-gui.py" "$SCRIPT_PATH"
     rc=$?
+    clear_candidates
     if [[ $rc -ne 0 ]]; then
         log "gui exited non-zero ($rc), falling back to non-interactive pick"
         fallback_fetch_or_local
@@ -418,8 +425,10 @@ write_timer_override() {
     local interval="$1"
     mkdir -p "$TIMER_OVERRIDE_DIR"
     # Blank OnUnitActiveSec first: systemd drop-ins accumulate values for
-    # list-type directives rather than replacing them.
-    printf '[Timer]\nOnUnitActiveSec=\n' > "$TIMER_OVERRIDE_FILE"
+    # list-type directives rather than replacing them. An empty assignment
+    # also clears OnBootSec, and a timer left with no trigger is refused
+    # ("Timer unit lacks value setting"), so the boot run is set again.
+    printf '[Timer]\nOnUnitActiveSec=\nOnBootSec=30s\n' > "$TIMER_OVERRIDE_FILE"
     if [[ -n "$interval" ]]; then
         printf 'OnUnitActiveSec=%s\n' "$interval" >> "$TIMER_OVERRIDE_FILE"
     fi
