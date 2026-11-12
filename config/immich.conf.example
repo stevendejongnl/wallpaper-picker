@@ -1,0 +1,9 @@
+# Optional Immich source. Copy to ~/.config/wallpaper/immich.conf and chmod 600.
+# Create the key in Immich: Account settings > API Keys (permissions: asset.read, asset.download).
+IMMICH_API_KEY=""
+# Limit to albums: space separated album ids (from the album URLs), combined into one
+# pool. Empty = all photos.
+IMMICH_ALBUM_IDS=""
+# The internal URL is used when it answers within 2s, otherwise the external one.
+IMMICH_INTERNAL_URL="http://192.168.1.69:2283"
+IMMICH_EXTERNAL_URL="https://immich.madebysteven.nl"

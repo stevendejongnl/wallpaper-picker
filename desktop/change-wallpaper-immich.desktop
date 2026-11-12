@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Change Wallpaper (Immich)
+Comment=Pick a new wallpaper from your Immich albums
+Exec=/bin/bash -c 'WALLPAPER_SOURCE=immich $HOME/.local/share/wallpaper-picker/bin/wallpaper.sh --gui'
+Icon=wallpaper
+Terminal=false
+Type=Application
+Categories=System;Utility
+Keywords=wallpaper;change;desktop;background;image;picture

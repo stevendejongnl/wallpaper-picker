@@ -56,6 +56,18 @@ wallpaper.sh --timer-status     show whether the timer is enabled and its curren
 queries, one per line; a random one is picked per candidate. Edit it any
 time, no restart needed.
 
+### Immich (optional)
+
+Copy `config/immich.conf.example` to `~/.config/wallpaper/immich.conf`, set
+`IMMICH_API_KEY`, and `chmod 600` it. It is off by default: the
+picker only shows Wallhaven. Set `WALLPAPER_SOURCE=immich` (only Immich) or `mixed` (both)
+for a run, e.g. `WALLPAPER_SOURCE=immich wallpaper.sh --gui`, or use the "Change Wallpaper
+(Immich)" launcher. Candidates come from your Immich library, or from the albums in `IMMICH_ALBUM_IDS` (space separated,
+combined into one pool) (landscape JPEGs only, blacklist works by asset id). The
+internal URL is tried first with a 2 second timeout, so at home or on the home VPN
+it stays on the LAN; otherwise the external URL is used. Without the file, only
+Wallhaven is used.
+
 ### The picker
 
 `--gui` fetches 3 candidates and opens a window: click a thumbnail (or press

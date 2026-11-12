@@ -47,6 +47,9 @@ CATEGORIES_FILE="$HOME/.config/wallpaper/categories.conf"
 BLACKLIST_FILE="$HOME/.config/wallpaper/blacklist.txt"
 CURRENT_FILE="$HOME/.config/wallpaper/current"
 LOCK_FILE="$WALLPAPERS_DIR/.wallpaper.lock"
+# Optional Immich source. A shell file with IMMICH_API_KEY (required) and optionally
+# IMMICH_ALBUM_IDS (space separated), IMMICH_INTERNAL_URL, IMMICH_EXTERNAL_URL. Keep it chmod 600.
+IMMICH_CONF="$HOME/.config/wallpaper/immich.conf"
 TIMER_OVERRIDE_DIR="$HOME/.config/systemd/user/wallpaper.timer.d"
 TIMER_OVERRIDE_FILE="$TIMER_OVERRIDE_DIR/override.conf"
 LOG_KEEP_LINES=2000
@@ -246,19 +249,88 @@ fetch_online_for_query() {
     return 1
 }
 
+# --- Immich source ------------------------------------------------------------
+
+# Prints the Immich base URL: the internal one when it answers (at home, or on the
+# home VPN), otherwise the external one. Probing needs no SSID or network state.
+immich_base_url() {
+    if curl -fs --max-time 2 -o /dev/null "$IMMICH_INTERNAL_URL/api/server/ping"; then
+        echo "$IMMICH_INTERNAL_URL"
+    else
+        echo "$IMMICH_EXTERNAL_URL"
+    fi
+}
+
+# Fetch one random landscape JPEG from Immich into CANDIDATES_DIR, skipping blacklisted
+# ids. Prints the absolute path on success. Fails quietly when Immich is not configured.
+fetch_immich() {
+    [[ -f "$IMMICH_CONF" ]] || return 1
+    local IMMICH_API_KEY="" IMMICH_ALBUM_IDS=""
+    local IMMICH_INTERNAL_URL="http://192.168.1.69:2283"
+    local IMMICH_EXTERNAL_URL="https://immich.madebysteven.nl"
+    # shellcheck disable=SC1090
+    source "$IMMICH_CONF"
+    [[ -n "$IMMICH_API_KEY" ]] || { log "immich: no IMMICH_API_KEY in $IMMICH_CONF"; return 1; }
+    command -v curl >/dev/null 2>&1 || return 1
+    command -v jq   >/dev/null 2>&1 || return 1
+
+    # One random album per request, so several albums act as one combined pool
+    local -a albums=($IMMICH_ALBUM_IDS)
+    local album=""
+    (( ${#albums[@]} )) && album="${albums[$((RANDOM % ${#albums[@]}))]}"
+
+    local base body resp
+    base=$(immich_base_url)
+    body=$(jq -n --arg album "$album" \
+        '{size: 20, type: "IMAGE", withExif: true} + (if $album != "" then {albumIds: [$album]} else {} end)')
+    log "fetching from Immich ($base)"
+    resp=$(curl -fs --max-time 15 -X POST "$base/api/search/random" \
+        -H "x-api-key: $IMMICH_API_KEY" -H "Content-Type: application/json" -d "$body") || {
+        log "immich: search failed"
+        return 1
+    }
+
+    local id key dest
+    while IFS= read -r id; do
+        key="${id//-/}"
+        is_blacklisted "$key" && continue
+        local kept="$ONLINE_DIR/immich-${key}.jpg"
+        if [[ -f "$kept" ]]; then echo "$kept"; return 0; fi
+        dest="$CANDIDATES_DIR/immich-${key}.jpg"
+        # already a candidate in this batch: take another photo
+        [[ -f "$dest" ]] && continue
+        if curl -fs --max-time 60 -o "$dest" -H "x-api-key: $IMMICH_API_KEY" \
+                "$base/api/assets/$id/original" && [[ -s "$dest" ]]; then
+            echo "$dest"
+            return 0
+        fi
+        rm -f "$dest"
+    done < <(echo "$resp" | jq -r '
+        .[]?
+        | select(.originalMimeType == "image/jpeg")
+        | select((.exifInfo.exifImageWidth // 0) > (.exifInfo.exifImageHeight // 0))
+        | .id')
+
+    log "immich: no usable landscape JPEG in the result"
+    return 1
+}
+
+# One online wallpaper. WALLPAPER_SOURCE picks the source: "wallhaven" (default),
+# "immich" (only Immich, needs immich.conf) or "mixed" (a random one of both).
+fetch_one_online() {
+    local source="${WALLPAPER_SOURCE:-wallhaven}" path
+    if [[ "$source" == immich ]] || { [[ "$source" == mixed ]] && (( RANDOM % 2 == 0 )); }; then
+        path=$(fetch_immich) && [[ -n "$path" ]] && { echo "$path"; return 0; }
+        [[ "$source" == immich ]] && return 1
+    fi
+    local -a categories
+    mapfile -t categories < <(grep -vE '^\s*(#|$)' "$CATEGORIES_FILE" 2>/dev/null)
+    [[ ${#categories[@]} -gt 0 ]] || return 1
+    fetch_online_for_query "${categories[$((RANDOM % ${#categories[@]}))]}"
+}
+
 fetch_online_wallpaper() {
-    if [[ ! -f "$CATEGORIES_FILE" ]]; then
-        log "no categories file at $CATEGORIES_FILE, skipping online fetch"
-        return 1
-    fi
-    local categories
-    mapfile -t categories < <(grep -vE '^\s*(#|$)' "$CATEGORIES_FILE")
-    if [[ ${#categories[@]} -eq 0 ]]; then
-        log "categories file is empty, skipping online fetch"
-        return 1
-    fi
-    local query="${categories[$((RANDOM % ${#categories[@]}))]}"
-    fetch_online_for_query "$query"
+    fetch_one_online
 }
 
 # Fetch N distinct candidate wallpapers, print one absolute path per line.
@@ -283,10 +355,9 @@ fetch_candidates() {
     local tries=0 max_tries=$(( n * 4 > 12 ? n * 4 : 12 ))
     while (( ${#results[@]} < n && tries < max_tries )); do
         ((tries++))
-        local q="${categories[$((RANDOM % ${#categories[@]}))]}"
         local path
-        path=$(fetch_online_for_query "$q") || continue
-        [[ -n "$path" ]] && results+=("$path")
+        path=$(fetch_one_online) || continue
+        [[ -n "$path" && " ${results[*]} " != *" $path "* ]] && results+=("$path")
     done
 
     if [[ ${#results[@]} -eq 0 ]]; then
