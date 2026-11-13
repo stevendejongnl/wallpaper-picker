@@ -28,9 +28,9 @@ ln -sfn "$REPO_DIR/systemd/wallpaper.service" "$SYSTEMD_USER_DIR/wallpaper.servi
 ln -sfn "$REPO_DIR/systemd/wallpaper.timer" "$SYSTEMD_USER_DIR/wallpaper.timer"
 
 log "Linking the .desktop launchers..."
-ln -sfn "$REPO_DIR/desktop/change-wallpaper.desktop" "$APPS_DIR/change-wallpaper.desktop"
-ln -sfn "$REPO_DIR/desktop/change-wallpaper-immich.desktop" "$APPS_DIR/change-wallpaper-immich.desktop"
-ln -sfn "$REPO_DIR/desktop/wallpaper-gallery.desktop" "$APPS_DIR/wallpaper-gallery.desktop"
+for desktop in "$REPO_DIR"/desktop/*.desktop; do
+    ln -sfn "$desktop" "$APPS_DIR/$(basename "$desktop")"
+done
 
 if [[ ! -f "$WALLPAPER_CONFIG_DIR/categories.conf" ]]; then
     log "Seeding categories.conf from example (edit this -- it's your search queries)"

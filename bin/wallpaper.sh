@@ -265,12 +265,22 @@ immich_base_url() {
 # ids. Prints the absolute path on success. Fails quietly when Immich is not configured.
 fetch_immich() {
     [[ -f "$IMMICH_CONF" ]] || return 1
-    local IMMICH_API_KEY="" IMMICH_ALBUM_IDS=""
+    local IMMICH_API_KEY="" IMMICH_ALBUM_IDS="" IMMICH_BW_ITEM="Immich" IMMICH_BW_FIELD=""
     local IMMICH_INTERNAL_URL="http://192.168.1.69:2283"
     local IMMICH_EXTERNAL_URL="https://immich.madebysteven.nl"
     # shellcheck disable=SC1090
     source "$IMMICH_CONF"
-    [[ -n "$IMMICH_API_KEY" ]] || { log "immich: no IMMICH_API_KEY in $IMMICH_CONF"; return 1; }
+    # No key in the file: read it from Bitwarden (custom field IMMICH_BW_FIELD on item
+    # IMMICH_BW_ITEM) so it never sits on disk. bw-session may show an unlock popup.
+    if [[ -z "$IMMICH_API_KEY" && -n "$IMMICH_BW_FIELD" ]]; then
+        local session
+        session=$(bw-session "Immich wallpaper source (wallpaper picker)" 2>/dev/null) \
+            || { log "immich: vault locked or cancelled, skipping"; return 1; }
+        IMMICH_API_KEY=$(BW_SESSION="$session" bw get item "$IMMICH_BW_ITEM" 2>/dev/null \
+            | jq -er --arg f "$IMMICH_BW_FIELD" '.fields[] | select(.name == $f) | .value') \
+            || { log "immich: no field '$IMMICH_BW_FIELD' on Bitwarden item '$IMMICH_BW_ITEM'"; return 1; }
+    fi
+    [[ -n "$IMMICH_API_KEY" ]] || { log "immich: no IMMICH_API_KEY (or IMMICH_BW_FIELD) in $IMMICH_CONF"; return 1; }
     command -v curl >/dev/null 2>&1 || return 1
     command -v jq   >/dev/null 2>&1 || return 1
 
@@ -423,10 +433,20 @@ cmd_remove() {
     log "removed: $file"
 }
 
+# WALLPAPER_SOURCE=immich lists only Immich wallpapers (files named immich-<id>.*);
+# wallhaven lists everything else; anything other than those lists all.
 cmd_list() {
     wallpapers_list=()
     find_local_wallpapers "$WALLPAPERS_DIR"
-    printf '%s\n' "${wallpapers_list[@]}"
+    local f
+    for f in "${wallpapers_list[@]}"; do
+        case "${WALLPAPER_SOURCE:-}:$(basename "$f")" in
+            immich:immich-*|wallhaven:immich-*)
+                [[ "$WALLPAPER_SOURCE" == immich ]] && echo "$f" ;;
+            immich:*) ;;
+            *) echo "$f" ;;
+        esac
+    done
 }
 
 cmd_current() {

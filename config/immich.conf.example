@@ -7,3 +7,7 @@ IMMICH_ALBUM_IDS=""
 # The internal URL is used when it answers within 2s, otherwise the external one.
 IMMICH_INTERNAL_URL="http://192.168.1.69:2283"
 IMMICH_EXTERNAL_URL="https://immich.madebysteven.nl"
+# Instead of IMMICH_API_KEY, read the key from Bitwarden at run time (never on disk):
+# leave IMMICH_API_KEY empty and set the custom field name on item IMMICH_BW_ITEM.
+IMMICH_BW_ITEM="Immich"
+IMMICH_BW_FIELD=""

@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Wallpaper Gallery (Immich)
+Comment=View the kept Immich wallpapers, set, remove or blacklist them
+Exec=/bin/bash -c 'WALLPAPER_SOURCE=immich $HOME/.local/share/wallpaper-picker/bin/wallpaper.sh --gallery'
+Icon=wallpaper
+Terminal=false
+Type=Application
+Categories=System;Utility
+Keywords=wallpaper;gallery;immich;photos;blacklist;remove

@@ -68,6 +68,11 @@ internal URL is tried first with a 2 second timeout, so at home or on the home V
 it stays on the LAN; otherwise the external URL is used. Without the file, only
 Wallhaven is used.
 
+To keep the key out of the file, leave `IMMICH_API_KEY` empty and set `IMMICH_BW_FIELD` (and
+`IMMICH_BW_ITEM`, default `Immich`): the key is then read from that Bitwarden custom field via
+`bw-session` at run time. The "Wallpaper Gallery (Immich)" launcher shows only the kept Immich
+wallpapers (`WALLPAPER_SOURCE=immich wallpaper.sh --gallery`).
+
 ### The picker
 
 `--gui` fetches 3 candidates and opens a window: click a thumbnail (or press
