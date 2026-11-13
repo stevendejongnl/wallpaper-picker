@@ -34,6 +34,9 @@
 #                     script, the alias, the .desktop launchers) still works
 #   --timer-status    show whether the timer is enabled and its interval
 
+# Launchers (dwm, systemd) do not have ~/.local/bin on PATH; bw-session and bw-field live there.
+export PATH="$HOME/.local/bin:$PATH"
+
 SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
 SCRIPT_DIR="$(dirname "$SCRIPT_PATH")"
 
@@ -261,6 +264,35 @@ immich_base_url() {
     fi
 }
 
+# Print the Immich API key stored in a Bitwarden custom field. bw-session may show an
+# unlock popup. Logs and fails when the vault stays locked or the field is missing.
+immich_bw_key() {
+    local item="$1" field="$2" session key
+    session=$(bw-session "Immich wallpaper source (wallpaper picker)" 2>/dev/null) \
+        || { log "immich: vault locked, bw-session missing or cancelled"; return 1; }
+    key=$(BW_SESSION="$session" bw get item "$item" 2>/dev/null \
+        | jq -er --arg f "$field" '.fields[] | select(.name == $f) | .value') \
+        || { log "immich: no field '$field' on Bitwarden item '$item'"; return 1; }
+    echo "$key"
+}
+
+# Resolve the key once for the whole run and export it, so the per-candidate
+# fetch_immich calls (run in subshells) do not each ask Bitwarden again.
+# Returns 1 when the source is Immich-only and no key is available.
+immich_preload_key() {
+    case "${WALLPAPER_SOURCE:-wallhaven}" in immich|mixed) ;; *) return 0 ;; esac
+    [[ -f "$IMMICH_CONF" ]] || return 0
+    local IMMICH_API_KEY="" IMMICH_BW_ITEM="Immich" IMMICH_BW_FIELD=""
+    # shellcheck disable=SC1090
+    source "$IMMICH_CONF"
+    if [[ -n "$IMMICH_API_KEY" ]]; then IMMICH_KEY_CACHE="$IMMICH_API_KEY"
+    elif [[ -n "$IMMICH_BW_FIELD" ]]; then
+        IMMICH_KEY_CACHE=$(immich_bw_key "$IMMICH_BW_ITEM" "$IMMICH_BW_FIELD") || IMMICH_KEY_CACHE=""
+    fi
+    export IMMICH_KEY_CACHE
+    [[ -n "$IMMICH_KEY_CACHE" || "${WALLPAPER_SOURCE:-}" != immich ]]
+}
+
 # Fetch one random landscape JPEG from Immich into CANDIDATES_DIR, skipping blacklisted
 # ids. Prints the absolute path on success. Fails quietly when Immich is not configured.
 fetch_immich() {
@@ -270,15 +302,11 @@ fetch_immich() {
     local IMMICH_EXTERNAL_URL="https://immich.madebysteven.nl"
     # shellcheck disable=SC1090
     source "$IMMICH_CONF"
-    # No key in the file: read it from Bitwarden (custom field IMMICH_BW_FIELD on item
-    # IMMICH_BW_ITEM) so it never sits on disk. bw-session may show an unlock popup.
+    # No key in the file: use the one resolved once per run (IMMICH_KEY_CACHE), else
+    # read it from Bitwarden (IMMICH_BW_ITEM / IMMICH_BW_FIELD) so it never sits on disk.
+    [[ -z "$IMMICH_API_KEY" ]] && IMMICH_API_KEY="${IMMICH_KEY_CACHE:-}"
     if [[ -z "$IMMICH_API_KEY" && -n "$IMMICH_BW_FIELD" ]]; then
-        local session
-        session=$(bw-session "Immich wallpaper source (wallpaper picker)" 2>/dev/null) \
-            || { log "immich: vault locked or cancelled, skipping"; return 1; }
-        IMMICH_API_KEY=$(BW_SESSION="$session" bw get item "$IMMICH_BW_ITEM" 2>/dev/null \
-            | jq -er --arg f "$IMMICH_BW_FIELD" '.fields[] | select(.name == $f) | .value') \
-            || { log "immich: no field '$IMMICH_BW_FIELD' on Bitwarden item '$IMMICH_BW_ITEM'"; return 1; }
+        IMMICH_API_KEY=$(immich_bw_key "$IMMICH_BW_ITEM" "$IMMICH_BW_FIELD") || return 1
     fi
     [[ -n "$IMMICH_API_KEY" ]] || { log "immich: no IMMICH_API_KEY (or IMMICH_BW_FIELD) in $IMMICH_CONF"; return 1; }
     command -v curl >/dev/null 2>&1 || return 1
@@ -340,12 +368,14 @@ fetch_one_online() {
 }
 
 fetch_online_wallpaper() {
+    immich_preload_key || return 1
     fetch_one_online
 }
 
 # Fetch N distinct candidate wallpapers, print one absolute path per line.
 fetch_candidates() {
     local n="$1"
+    immich_preload_key || { log "candidates: Immich key unavailable"; return 1; }
     command -v curl >/dev/null 2>&1 || { log "curl not found, skipping candidates fetch"; return 1; }
     command -v jq   >/dev/null 2>&1 || { log "jq not found, skipping candidates fetch"; return 1; }
     if [[ ! -f "$CATEGORIES_FILE" ]]; then
@@ -478,6 +508,17 @@ cmd_reapply() {
 
 # Fallback path shared by cmd_gui and the default no-args case.
 fallback_fetch_or_local() {
+    local chosen
+    if [[ "${WALLPAPER_SOURCE:-}" == immich ]]; then
+        # Immich-only: never swap in a Wallhaven/local wallpaper behind the user's back
+        chosen=$(fetch_online_wallpaper) || chosen=""
+        if [[ -n "$chosen" ]]; then set_wallpaper "$chosen"
+        else
+            log "immich-only: no wallpaper fetched, keeping the current one"
+            timeout 3 notify-send -u critical 'Wallpaper' 'Immich failed (vault locked or unreachable), wallpaper unchanged. See ~/Pictures/wallpapers/log.txt'
+        fi
+        return
+    fi
     local chosen
     chosen=$(fetch_online_wallpaper)
     if [[ -n "$chosen" ]]; then
