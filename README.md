@@ -7,7 +7,7 @@ just silently swapping your background — can show a small GTK picker with
 (deleted, never shown again), or shuffle for 3 new ones.
 
 Runs standalone from a terminal/alias/`.desktop` launcher, or on a systemd
-user timer (default every 3h, configurable, or turn it off and only run it
+user timer (once, 5 minutes after boot; or turn it off and only run it
 manually). Alternatively it can run once after boot and again after each
 display profile change (see [Trigger modes](#trigger-modes)).
 
@@ -93,18 +93,30 @@ lines).
 ## systemd units
 
 `systemd/wallpaper.service` runs `wallpaper.sh --gui` once; `wallpaper.timer`
-triggers it (30s after boot, then every `OnUnitActiveSec`, default 3h).
-`install.sh` symlinks both into `~/.config/systemd/user/`. Adjust the
-interval with `wallpaper.sh --interval <span>` rather than editing the timer
-file directly — that writes a drop-in override so your change survives a
-`git pull` of this repo.
+triggers it once, 5 minutes after boot (`OnBootSec=5min`), with no repeat.
+`install.sh` symlinks both into `~/.config/systemd/user/`. To get a repeat,
+use `wallpaper.sh --interval <span>`; that writes a drop-in override so your
+change survives a `git pull` of this repo.
+
+### Source: home or office
+
+Without `WALLPAPER_SOURCE`, the picker checks whether the internal Immich URL
+answers within 2s. At home it offers only Immich photos. Anywhere else (the
+office) it offers only the Wallhaven categories from `categories.conf`.
+Set `WALLPAPER_SOURCE=wallhaven|immich|mixed` to force one source.
+
+### Restore
+
+`autostart.sh` and the autorandr `postswitch` hook run `wallpaper.sh --reapply`.
+It applies the last set image to every output with `feh --bg-fill`, including
+monitors that were not connected when you chose it.
 
 ### Trigger modes
 
-- `periodic` (default): the timer runs the picker every 3h, or every span you
+- `periodic`: the timer runs the picker every span you
   pass to `--mode periodic <span>` / `--interval <span>`.
 - `events`: `wallpaper.sh --mode events` removes the repeat. The picker runs
-  once 30s after boot and again whenever your display profile switcher calls
+  once 5 minutes after boot and again whenever your display profile switcher calls
   `wallpaper.sh --display-changed`. In `periodic` mode that call does nothing,
   so the hook is safe to leave in place.
 
@@ -115,8 +127,8 @@ any profile choice is made):
 "$HOME/.local/share/wallpaper-picker/bin/wallpaper.sh" --display-changed
 ```
 
-`--mode periodic` without a span deletes the override and returns to the 3h
-default. `--timer-status` shows the current mode.
+`--mode periodic` without a span deletes the override and returns to the
+boot-only default. `--timer-status` shows the current mode.
 
 ## License
 

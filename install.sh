@@ -49,7 +49,7 @@ cat <<EOF
 Done.
   - Edit your categories: $WALLPAPER_CONFIG_DIR/categories.conf
   - Try it now:           $REPO_DIR/bin/wallpaper.sh --gui
-  - Change interval:      $REPO_DIR/bin/wallpaper.sh --interval 1h
+  - Add a repeat:         $REPO_DIR/bin/wallpaper.sh --interval 1h
   - Turn auto-run off:    $REPO_DIR/bin/wallpaper.sh --timer-disable
   - Check timer status:   $REPO_DIR/bin/wallpaper.sh --timer-status
 

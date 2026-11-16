@@ -23,8 +23,8 @@
 #                     e.g. "1h", "90m", "6h") via a drop-in override; does
 #                     not touch the tracked wallpaper.timer file
 #   --mode periodic [VALUE]
-#                     run the timer every VALUE (default: the 3h from
-#                     wallpaper.timer when VALUE is omitted)
+#                     run the timer every VALUE (without VALUE: back to the
+#                     boot-only default, once 5 minutes after boot)
 #   --mode events     run once after boot and after each display profile
 #                     change, no repeat; needs --display-changed called from
 #                     the profile switcher
@@ -356,7 +356,7 @@ fetch_immich() {
 # One online wallpaper. WALLPAPER_SOURCE picks the source: "wallhaven" (default),
 # "immich" (only Immich, needs immich.conf) or "mixed" (a random one of both).
 fetch_one_online() {
-    local source="${WALLPAPER_SOURCE:-wallhaven}" path
+    local source="${WALLPAPER_SOURCE:-$(default_source)}" path
     if [[ "$source" == immich ]] || { [[ "$source" == mixed ]] && (( RANDOM % 2 == 0 )); }; then
         path=$(fetch_immich) && [[ -n "$path" ]] && { echo "$path"; return 0; }
         [[ "$source" == immich ]] && return 1
@@ -365,6 +365,18 @@ fetch_one_online() {
     mapfile -t categories < <(grep -vE '^\s*(#|$)' "$CATEGORIES_FILE" 2>/dev/null)
     [[ ${#categories[@]} -gt 0 ]] || return 1
     fetch_online_for_query "${categories[$((RANDOM % ${#categories[@]}))]}"
+}
+
+# At home the internal Immich URL answers; anywhere else (the office) it does not.
+at_home() {
+    local IMMICH_INTERNAL_URL="http://192.168.1.69:2283"
+    [[ -f "$IMMICH_CONF" ]] && source "$IMMICH_CONF"
+    curl -fs --max-time 2 -o /dev/null "$IMMICH_INTERNAL_URL/api/server/ping"
+}
+
+# Home: only Immich. Office: only the Wallhaven categories.
+default_source() {
+    if at_home; then echo immich; else echo wallhaven; fi
 }
 
 fetch_online_wallpaper() {
@@ -647,8 +659,8 @@ cmd_timer_status() {
     local enabled interval mode
     enabled=$(systemctl --user is-enabled wallpaper.timer 2>/dev/null)
     [[ -z "$enabled" ]] && enabled="unknown"
-    mode="periodic"
-    interval="3h (default, from wallpaper.timer)"
+    mode="boot-only"
+    interval="none (once, 5 minutes after boot)"
     if timer_runs_on_events; then
         mode="events"
         interval="none (after boot and display changes only)"
