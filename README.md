@@ -100,10 +100,12 @@ change survives a `git pull` of this repo.
 
 ### Source: home or office
 
-Without `WALLPAPER_SOURCE`, the picker checks whether the internal Immich URL
-answers within 2s. At home it offers only Immich photos. Anywhere else (the
-office) it offers only the Wallhaven categories from `categories.conf`.
-Set `WALLPAPER_SOURCE=wallhaven|immich|mixed` to force one source.
+Without `WALLPAPER_SOURCE`, the picker checks the active Wi-Fi network. On the
+office network (`CloudSuite`, or the name in `OFFICE_SSID`) it offers only the
+Wallhaven categories from `categories.conf`. Anywhere else it offers only
+Immich photos. A machine that never has the office network, such as a desktop
+without Wi-Fi, always gets Immich. Set `WALLPAPER_SOURCE=wallhaven|immich|mixed`
+to force one source.
 
 ### Restore
 

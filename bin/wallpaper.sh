@@ -367,16 +367,17 @@ fetch_one_online() {
     fetch_online_for_query "${categories[$((RANDOM % ${#categories[@]}))]}"
 }
 
-# At home the internal Immich URL answers; anywhere else (the office) it does not.
-at_home() {
-    local IMMICH_INTERNAL_URL="http://192.168.1.69:2283"
-    [[ -f "$IMMICH_CONF" ]] && source "$IMMICH_CONF"
-    curl -fs --max-time 2 -o /dev/null "$IMMICH_INTERNAL_URL/api/server/ping"
+# The office is the Wi-Fi network named OFFICE_SSID (default CloudSuite). A machine
+# without that connection (the workstation) is never at the office.
+at_office() {
+    local ssid
+    ssid=$(nmcli -t -f ACTIVE,SSID dev wifi 2>/dev/null | sed -n 's/^yes://p' | head -n1)
+    [[ "$ssid" == "${OFFICE_SSID:-CloudSuite}" ]]
 }
 
-# Home: only Immich. Office: only the Wallhaven categories.
+# Office: only the Wallhaven categories. Everywhere else: only Immich.
 default_source() {
-    if at_home; then echo immich; else echo wallhaven; fi
+    if at_office; then echo wallhaven; else echo immich; fi
 }
 
 fetch_online_wallpaper() {
