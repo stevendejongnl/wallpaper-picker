@@ -31,6 +31,8 @@ log "Linking the .desktop launchers..."
 for desktop in "$REPO_DIR"/desktop/*.desktop; do
     ln -sfn "$desktop" "$APPS_DIR/$(basename "$desktop")"
 done
+# Old per-source launchers: one launcher now picks the source itself
+rm -f "$APPS_DIR/change-wallpaper-immich.desktop" "$APPS_DIR/wallpaper-gallery-immich.desktop"
 
 if [[ ! -f "$WALLPAPER_CONFIG_DIR/categories.conf" ]]; then
     log "Seeding categories.conf from example (edit this -- it's your search queries)"

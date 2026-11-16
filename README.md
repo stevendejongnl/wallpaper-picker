@@ -59,10 +59,10 @@ time, no restart needed.
 ### Immich (optional)
 
 Copy `config/immich.conf.example` to `~/.config/wallpaper/immich.conf`, set
-`IMMICH_API_KEY`, and `chmod 600` it. It is off by default: the
-picker only shows Wallhaven. Set `WALLPAPER_SOURCE=immich` (only Immich) or `mixed` (both)
-for a run, e.g. `WALLPAPER_SOURCE=immich wallpaper.sh --gui`, or use the "Change Wallpaper
-(Immich)" launcher. Candidates come from your Immich library, or from the albums in `IMMICH_ALBUM_IDS` (space separated,
+`IMMICH_API_KEY`, and `chmod 600` it. Without the file the
+picker only shows Wallhaven. The "Change Wallpaper" launcher picks the source itself (see
+[Source: home or office](#source-home-or-office)); `WALLPAPER_SOURCE=immich` (only Immich) or
+`mixed` (both) forces one for a run, e.g. `WALLPAPER_SOURCE=immich wallpaper.sh --gui`. Candidates come from your Immich library, or from the albums in `IMMICH_ALBUM_IDS` (space separated,
 combined into one pool) (landscape JPEGs only, blacklist works by asset id). The
 internal URL is tried first with a 2 second timeout, so at home or on the home VPN
 it stays on the LAN; otherwise the external URL is used. Without the file, only
@@ -70,8 +70,8 @@ Wallhaven is used.
 
 To keep the key out of the file, leave `IMMICH_API_KEY` empty and set `IMMICH_BW_FIELD` (and
 `IMMICH_BW_ITEM`, default `Immich`): the key is then read from that Bitwarden custom field via
-`bw-session` at run time. The "Wallpaper Gallery (Immich)" launcher shows only the kept Immich
-wallpapers (`WALLPAPER_SOURCE=immich wallpaper.sh --gallery`).
+`bw-session` at run time. The "Wallpaper Gallery" launcher shows only the kept wallpapers of the
+current source, so Immich photos at home (`WALLPAPER_SOURCE=immich wallpaper.sh --gallery`).
 
 ### The picker
 

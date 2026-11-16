@@ -676,6 +676,9 @@ cmd_timer_status() {
 
 # --- dispatch -----------------------------------------------------------------
 
+# Every code path (picker, gallery, list) reads WALLPAPER_SOURCE: resolve it once here.
+export WALLPAPER_SOURCE="${WALLPAPER_SOURCE:-$(default_source)}"
+
 log "===== run ($*) ====="
 
 case "${1:-}" in
