@@ -9,9 +9,13 @@ current wallpaper, so an unattended timer run never hangs behind the window.
 All fetch / set / blacklist logic lives in wallpaper.sh; this script only
 shells out to it.
 
-Usage: wallpaper-gui.py /path/to/wallpaper.sh
+With --ask (boot run) a small prompt comes first: pick new wallpapers, or use a
+random existing one. Nothing answered within ASK_SECONDS picks the random one.
+
+Usage: wallpaper-gui.py /path/to/wallpaper.sh [--ask]
 """
 import os
+import random
 import subprocess
 import sys
 import threading
@@ -25,6 +29,7 @@ from gi.repository import Gdk, GdkPixbuf, GLib, Gtk  # noqa: E402
 
 N_CANDIDATES = 3
 AUTO_DISMISS_SECONDS = 180
+ASK_SECONDS = 30
 THUMB_SIZE = 300
 EXIT_NO_CANDIDATES = 3
 
@@ -33,6 +38,7 @@ if len(sys.argv) < 2:
     sys.exit(2)
 
 SH_PATH = sys.argv[1]
+ASK_FIRST = "--ask" in sys.argv[2:]
 
 
 def run_sh(args):
@@ -99,6 +105,92 @@ def show_preview(parent, path):
     outer.pack_start(image, True, True, 0)
 
     popup.show_all()
+
+
+def set_random_existing():
+    """Apply a random kept wallpaper of the current source (--list is source-aware)."""
+    paths = [p for p in run_sh(["--list"]).stdout.splitlines() if os.path.isfile(p)]
+    if paths:
+        run_sh(["--set", random.choice(paths)])
+    else:
+        run_sh(["--local"])
+
+
+class StartupPrompt(Gtk.Window):
+    """Pick new wallpapers or use a random existing one; times out to the random one."""
+
+    def __init__(self):
+        super().__init__(title="Wallpaper")
+        self.set_keep_above(True)
+        self.set_type_hint(Gdk.WindowTypeHint.DIALOG)
+        self.set_position(Gtk.WindowPosition.CENTER)
+        self.set_border_width(16)
+        self.choice = "random"
+        self.remaining = ASK_SECONDS
+        self._done = False
+        self.connect("delete-event", lambda _w, _e: self.finish("random") or True)
+        self.connect("key-press-event", self.on_key_press)
+
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        self.add(box)
+        box.pack_start(Gtk.Label(label="<b>Wallpaper</b>", use_markup=True), False, False, 0)
+        box.pack_start(Gtk.Label(label="Pick a new one, or use a random existing one?"), False, False, 0)
+        self.countdown_label = Gtk.Label(label="")
+        box.pack_start(self.countdown_label, False, False, 0)
+
+        buttons = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        random_btn = Gtk.Button(label="Random existing")
+        random_btn.connect("clicked", lambda _b: self.finish("random"))
+        new_btn = Gtk.Button(label="Pick new")
+        new_btn.get_style_context().add_class("suggested-action")
+        new_btn.connect("clicked", lambda _b: self.finish("new"))
+        buttons.pack_start(random_btn, True, True, 0)
+        buttons.pack_start(new_btn, True, True, 0)
+        box.pack_start(buttons, False, False, 0)
+
+        self.show_all()
+        self.update_label()
+        GLib.timeout_add(1000, self.tick)
+
+    def update_label(self):
+        self.countdown_label.set_text(f"random existing in {self.remaining}s")
+
+    def tick(self):
+        if self._done:
+            return False
+        self.remaining -= 1
+        self.update_label()
+        if self.remaining <= 0:
+            self.finish("random")
+            return False
+        return True
+
+    def on_key_press(self, _widget, event):
+        name = Gdk.keyval_name(event.keyval) or ""
+        if name in ("n", "N", "Return"):
+            self.finish("new")
+        elif name in ("r", "R", "Escape"):
+            self.finish("random")
+        return False
+
+    def finish(self, choice):
+        if self._done:
+            return
+        self._done = True
+        self.choice = choice
+        Gtk.main_quit()
+
+
+def ask_first():
+    """Returns True when the user wants the picker, False when a random one was applied."""
+    prompt = StartupPrompt()
+    Gtk.main()
+    choice = prompt.choice
+    prompt.destroy()
+    if choice == "random":
+        set_random_existing()
+        return False
+    return True
 
 
 class WallpaperPicker(Gtk.Window):
@@ -308,6 +400,8 @@ class WallpaperPicker(Gtk.Window):
 
 
 def main():
+    if ASK_FIRST and not ask_first():
+        sys.exit(0)
     win = WallpaperPicker()
     Gtk.main()
     win.destroy()

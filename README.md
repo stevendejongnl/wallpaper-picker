@@ -82,6 +82,15 @@ current` (or `Escape`) to leave your wallpaper untouched. Ticked images are
 blacklisted either way. If left alone for 3 minutes it keeps your current
 wallpaper, so a timer-triggered run never hangs behind the window.
 
+### Startup prompt
+
+The boot run (`wallpaper.service` calls `--gui --ask`) opens a small prompt first:
+`Pick new` (or `N`/`Enter`) opens the picker above, `Random existing` (or `R`/`Escape`)
+applies a random kept wallpaper of the current source (Immich at home, Wallhaven
+categories at the office). With no answer after 30 seconds, or when you close the
+window, it applies the random existing one. Manual launches (`--gui` without `--ask`)
+skip the prompt.
+
 ### Cache
 
 Candidates are downloaded to `~/.cache/wallpaper/candidates/` and are not kept:
@@ -92,7 +101,7 @@ lines).
 
 ## systemd units
 
-`systemd/wallpaper.service` runs `wallpaper.sh --gui` once; `wallpaper.timer`
+`systemd/wallpaper.service` runs `wallpaper.sh --gui --ask` once; `wallpaper.timer`
 triggers it once, 5 minutes after boot (`OnBootSec=5min`), with no repeat.
 `install.sh` symlinks both into `~/.config/systemd/user/`. To get a repeat,
 use `wallpaper.sh --interval <span>`; that writes a drop-in override so your

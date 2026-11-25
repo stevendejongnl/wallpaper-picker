@@ -4,7 +4,9 @@
 #   (no args)         fetch a new wallpaper from Wallhaven (random category
 #                     from categories.conf), fall back to a random local one
 #                     on any failure (offline, API down, empty result, etc.)
-#   --gui             fetch candidates and show a GTK picker to choose/blacklist
+#   --gui [--ask]     fetch candidates and show a GTK picker to choose/blacklist;
+#                     with --ask, first ask: pick new, or a random existing one
+#                     (a random existing one after 30 seconds)
 #   --candidates N    fetch N candidates (skipping blacklisted ids), print one
 #                     absolute path per line. They are not kept: --set moves the
 #                     chosen one into ~/Pictures/wallpapers/online, the rest is deleted
@@ -543,6 +545,7 @@ fallback_fetch_or_local() {
 }
 
 cmd_gui() {
+    # "--ask": the GUI first asks "pick new or random existing" (30 s, then random existing)
     if ! command -v python3 >/dev/null 2>&1; then
         log "python3 not found, falling back to non-interactive pick"
         fallback_fetch_or_local
@@ -550,7 +553,7 @@ cmd_gui() {
     fi
 
     local rc
-    WALLPAPER_SH_NOLOCK=1 python3 "$SCRIPT_DIR/wallpaper-gui.py" "$SCRIPT_PATH"
+    WALLPAPER_SH_NOLOCK=1 python3 "$SCRIPT_DIR/wallpaper-gui.py" "$SCRIPT_PATH" "$@"
     rc=$?
     clear_candidates
     if [[ $rc -ne 0 ]]; then
@@ -713,7 +716,7 @@ case "${1:-}" in
         cmd_reapply
         ;;
     --gui)
-        cmd_gui
+        cmd_gui "${@:2}"
         ;;
     --interval)
         cmd_set_interval "$2"
